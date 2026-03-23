@@ -138,22 +138,69 @@ Consolide tous les ingrédients des N_REPAS recettes :
   "→ Mentionner à la caisse Maxi : [épicerie concurrente] [prix concurrent]"
 - Note : Super C et IGA n'apparaissent JAMAIS comme épicerie d'achat dans la liste
 
-# ÉTAPE 7 — ÉCRIRE DANS GOOGLE SHEETS
-Dépose les données dans le Google Sheets FamilyMeal
-(ID : 1HOpW3Fj0MzQ4yNF5OohFHxJjjFVOrnwsJnSn7fTt-38)
+# ÉTAPE 7 — ÉCRIRE DANS GOOGLE SHEETS VIA PYTHON
 
-Onglet "Menus" — une ligne par souper :
-| Semaine | Jour | Titre | URL | Site | Protéine | Temps | Portions | Statut |
-Valeur initiale de Statut : "Suggéré"
+## 7a — Générer le fichier JSON intermédiaire
 
-Onglet "Circulaires" — une ligne par item en promo :
-| Date | Épicerie | Produit | Catégorie | Prix promo | Prix régulier | Économie % |
+Écris un fichier `familymeal_data.json` dans le même dossier que ce SKILL.md
+(chemin absolu : le répertoire courant du scheduled task).
 
-Onglet "Épicerie" — liste consolidée :
-| Produit | Quantité | Unité | Catégorie | Épicerie | Imbattable Maxi |
+Structure exacte à respecter :
 
-Onglet "Statut" — cellule A1 uniquement :
-Écris : READY - [date au format AAAA-MM-JJ]
+```json
+{
+  "semaine": "AAAA-MM-JJ",
+  "n_repas": N_REPAS,
+  "n_portions": N_PORTIONS,
+  "menus": [
+    {
+      "jour": "Lundi",
+      "titre": "Titre exact de la recette",
+      "url": "https://... ou vide si recette suggérée",
+      "site": "Nom du site ou Recette suggérée",
+      "proteine": "Poisson / Volaille / Viande rouge / Légumineuses / Tofu",
+      "temps": 35,
+      "portions": N_PORTIONS,
+      "statut": "Suggéré"
+    }
+  ],
+  "circulaires": [
+    {
+      "epicerie": "Maxi",
+      "produit": "Nom du produit",
+      "categorie": "Volaille / Poisson / Légume / Fruit / Épicerie sèche / etc.",
+      "prix_promo": "4,99 $/lb",
+      "prix_regulier": "6,49 $/lb ou vide",
+      "economie_pct": "20%"
+    }
+  ],
+  "epicerie": [
+    {
+      "produit": "Nom du produit",
+      "quantite": "900 g",
+      "unite": "g / lb / boîte / pièce / sac / etc.",
+      "prix": "4,99 $/lb",
+      "categorie": "Viandes & protéines / Légumes / Fruits / Épicerie sèche / etc.",
+      "epicerie": "MAXI ou MÉTRO",
+      "imbattable_maxi": "Mentionner à la caisse : Super C 3,77$/lb ou vide"
+    }
+  ]
+}
+```
+
+## 7b — Appeler le script Python
+
+Une fois le JSON écrit, exécute cette commande bash :
+
+```bash
+python3 write_to_sheets.py
+```
+
+Si `python3` échoue, essaie `python write_to_sheets.py`.
+
+Le script lit `familymeal_data.json` et écrit dans les 4 onglets du Sheets.
+Si le script retourne une erreur, note-le dans le résumé final mais continue
+(le fichier .txt de secours a déjà été généré).
 
 # FORMAT DE CONFIRMATION FINALE
 Génère ce résumé à la fin :
