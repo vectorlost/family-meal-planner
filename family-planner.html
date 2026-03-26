@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🥗 Family Planner</title>
+<style>
+:root {
+  --green: #2d7a4f; --green-light: #e8f5ee; --green-mid: #4caf7d;
+  --orange: #f57c00; --orange-light: #fff3e0;
+  --gold: #f9a825; --gold-light: #fffde7;
+  --blue: #1565c0; --blue-light: #e3f2fd;
+  --red: #c62828; --red-light: #fce4ec;
+  --purple: #6a1b9a; --purple-light: #f3e5f5;
+  --gray: #f5f5f5; --gray-mid: #e0e0e0;
+  --text: #212121; --text-light: #757575;
+  --shadow: 0 2px 8px rgba(0,0,0,0.10); --radius: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f1; color: var(--text); min-height: 100vh; }
+
+/* ── LOADING ── */
+#loading { display:flex; align-items:center; justify-content:center; min-height:100vh; flex-direction:column; gap:16px; }
+#loading .spinner { width:48px; height:48px; border:4px solid var(--gray-mid); border-top-color:var(--green); border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── HEADER ── */
+header { background: linear-gradient(135deg, var(--green) 0%, #1b5e35 100%); color: white; padding: 20px 16px 16px; }
+.header-top { display:flex; align-items:center; justify-content:space-between; max-width:900px; margin:0 auto; }
+header h1 { font-size: 1.6rem; font-weight: 700; }
+.week-nav { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.15); border-radius:24px; padding:4px 8px; }
+.week-nav button { background:none; border:none; color:white; font-size:1.1rem; cursor:pointer; padding:4px 8px; border-radius:16px; transition:background 0.15s; }
+.week-nav button:hover { background:rgba(255,255,255,0.2); }
+.week-nav button:disabled { opacity:0.3; cursor:not-allowed; }
+#week-label { font-size:0.88rem; font-weight:600; white-space:nowrap; padding:0 4px; }
+.stats-bar { display:flex; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap; max-width:900px; margin-left:auto; margin-right:auto; }
+.stat { background:rgba(255,255,255,0.18); border-radius:20px; padding:5px 12px; font-size:0.78rem; font-weight:600; display:flex; align-items:center; gap:5px; }
+
+/* ── TABS ── */
+.tabs { display:flex; background:white; border-bottom:2px solid var(--gray-mid); position:sticky; top:0; z-index:10; box-shadow:0 2px 6px rgba(0,0,0,0.07); }
+.tab-btn { flex:1; padding:12px 6px; border:none; background:none; font-size:0.82rem; font-weight:600; color:var(--text-light); cursor:pointer; transition:all 0.2s; border-bottom:3px solid transparent; margin-bottom:-2px; }
+.tab-btn.active { color:var(--green); border-bottom-color:var(--green); }
+.tab-btn:hover { background:var(--gray); }
+
+/* ── MAIN ── */
+main { max-width:900px; margin:0 auto; padding:16px 14px 80px; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.section-title { font-size:0.95rem; font-weight:700; color:var(--green); margin:20px 0 10px; display:flex; align-items:center; gap:8px; }
+.section-title::after { content:''; flex:1; height:1px; background:var(--gray-mid); }
+
+/* ── MENU CARDS ── */
+.menus-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; }
+.menu-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.menu-card-header { padding:12px 14px 10px; display:flex; align-items:center; gap:10px; cursor:pointer; }
+.menu-card-header:hover { background:var(--gray); }
+.day-chip { background:var(--green-light); color:var(--green); font-size:0.75rem; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+.protein-emoji { font-size:1.5rem; }
+.card-title-area { flex:1; }
+.recipe-name { font-weight:600; font-size:0.92rem; line-height:1.3; }
+.recipe-name a { color:inherit; text-decoration:none; }
+.recipe-name a:hover { color:var(--green); text-decoration:underline; }
+.recipe-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:5px; }
+.meta-tag { font-size:0.72rem; font-weight:600; padding:2px 8px; border-radius:10px; background:var(--gray); color:var(--text-light); }
+.meta-tag.time { background:var(--blue-light); color:var(--blue); }
+.meta-tag.saveur { background:var(--purple-light); color:var(--purple); }
+.expand-icon { font-size:0.9rem; color:var(--text-light); transition:transform 0.2s; flex-shrink:0; }
+.menu-card.expanded .expand-icon { transform:rotate(180deg); }
+
+/* ── RECIPE DETAILS ── */
+.recipe-details { display:none; padding:0 14px 14px; border-top:1px solid var(--gray-mid); }
+.menu-card.expanded .recipe-details { display:block; }
+.detail-section { margin-top:12px; }
+.detail-label { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-light); margin-bottom:6px; }
+.ingredient-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid #f5f5f5; font-size:0.85rem; }
+.ingredient-row:last-child { border-bottom:none; }
+.ing-name { flex:1; font-weight:500; }
+.ing-qty { font-size:0.78rem; color:var(--text-light); }
+.ing-store { font-size:0.7rem; font-weight:700; padding:2px 6px; border-radius:8px; white-space:nowrap; }
+.ing-store.maxi { background:var(--red-light); color:var(--red); }
+.ing-store.metro { background:var(--blue-light); color:var(--blue); }
+.ing-price { font-size:0.78rem; font-weight:700; color:var(--green); white-space:nowrap; }
+.special-badge { font-size:0.65rem; background:var(--orange-light); color:var(--orange); padding:1px 5px; border-radius:6px; font-weight:700; }
+.prep-steps { list-style:none; counter-reset:steps; }
+.prep-steps li { counter-increment:steps; display:flex; gap:10px; font-size:0.85rem; line-height:1.5; margin-bottom:7px; }
+.prep-steps li::before { content:counter(steps); background:var(--green); color:white; min-width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; flex-shrink:0; margin-top:2px; }
+.tip-box { background:var(--gold-light); border-left:3px solid var(--gold); padding:8px 10px; border-radius:0 8px 8px 0; font-size:0.82rem; margin-top:8px; }
+.tip-box strong { color:#b8860b; }
+.note-caroline { background:var(--blue-light); border-left:3px solid var(--blue); padding:8px 10px; border-radius:0 8px 8px 0; font-size:0.82rem; margin-top:6px; }
+.note-caroline strong { color:var(--blue); }
+
+/* ── ÉPICERIE ── */
+.epicerie-toolbar { display:flex; align-items:center; gap:10px; background:white; border-radius:var(--radius); padding:12px 14px; box-shadow:var(--shadow); margin-bottom:14px; flex-wrap:wrap; }
+.progress-wrap { flex:1; min-width:120px; }
+.progress-bar-track { background:var(--gray-mid); border-radius:10px; height:8px; }
+.progress-bar-fill { height:100%; border-radius:10px; background:linear-gradient(90deg, var(--green), var(--green-mid)); transition:width 0.4s ease; }
+.progress-label { font-size:0.78rem; font-weight:600; color:var(--text-light); margin-top:4px; }
+.toggle-btn { font-size:0.78rem; font-weight:600; padding:6px 12px; border-radius:20px; border:2px solid var(--gray-mid); background:white; cursor:pointer; color:var(--text-light); transition:all 0.15s; white-space:nowrap; }
+.toggle-btn.active { border-color:var(--green); color:var(--green); background:var(--green-light); }
+.store-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.store-tab { padding:7px 14px; border-radius:20px; border:2px solid var(--gray-mid); background:white; font-size:0.8rem; font-weight:600; cursor:pointer; transition:all 0.15s; color:var(--text-light); }
+.store-tab.active-store { border-color:var(--green); color:var(--green); background:var(--green-light); }
+.store-section { display:none; }
+.store-section.active-store { display:block; }
+.cat-label { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-light); margin:14px 0 7px; }
+.grocery-list { display:flex; flex-direction:column; gap:5px; }
+.grocery-item { background:white; border-radius:10px; padding:11px 13px; box-shadow:var(--shadow); display:flex; align-items:center; gap:11px; cursor:pointer; border:2px solid transparent; transition:opacity 0.2s, border-color 0.15s; }
+.grocery-item.imbattable { border-color:var(--gold); background:var(--gold-light); }
+.grocery-item.checked { opacity:0.4; }
+.grocery-item.hidden-home { display:none; }
+.checkbox { width:22px; height:22px; border-radius:6px; border:2px solid var(--gray-mid); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.15s; background:white; }
+.grocery-item.checked .checkbox { background:var(--green); border-color:var(--green); }
+.check-svg { display:none; }
+.grocery-item.checked .check-svg { display:block; }
+.item-name { font-size:0.88rem; font-weight:600; flex:1; }
+.grocery-item.checked .item-name { text-decoration:line-through; }
+.item-qty { font-size:0.76rem; color:var(--text-light); margin-top:1px; }
+.item-price { font-size:0.84rem; font-weight:700; color:var(--green); text-align:right; flex-shrink:0; }
+.item-imbattable { font-size:0.65rem; color:#b8860b; font-weight:700; text-align:right; margin-top:2px; }
+.item-special { font-size:0.65rem; color:var(--orange); font-weight:700; text-align:right; margin-top:2px; }
+.copy-btn { display:flex; align-items:center; gap:8px; margin-top:18px; padding:12px 18px; border-radius:10px; border:none; background:var(--green); color:white; font-size:0.86rem; font-weight:600; cursor:pointer; transition:background 0.2s; }
+.copy-btn:hover { background:#1b5e35; }
+
+/* ── RÉSUMÉ ── */
+.summary-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+.summary-card { background:white; border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); text-align:center; }
+.big-num { font-size:1.8rem; font-weight:800; color:var(--green); }
+.big-label { font-size:0.74rem; color:var(--text-light); margin-top:4px; }
+.summary-card.gold .big-num { color:#b8860b; }
+.summary-card.orange .big-num { color:var(--orange); }
+.store-summary-row { background:white; border-radius:10px; padding:13px 15px; box-shadow:var(--shadow); display:flex; align-items:center; gap:12px; margin-bottom:9px; }
+.store-initial { width:38px; height:38px; border-radius:10px; font-size:0.9rem; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.store-info { flex:1; }
+.store-name { font-weight:700; font-size:0.9rem; }
+.store-detail { font-size:0.76rem; color:var(--text-light); margin-top:2px; }
+
+/* ── ANALYSE ── */
+.analyse-card { background:white; border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:14px; }
+.analyse-card h3 { font-size:0.9rem; font-weight:700; color:var(--green); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.analyse-card p { font-size:0.86rem; line-height:1.6; color:var(--text); }
+.imbattable-card { background:var(--gold-light); border:1px solid var(--gold); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+.imbattable-produit { font-weight:700; font-size:0.9rem; }
+.imbattable-detail { font-size:0.8rem; color:var(--text-light); margin-top:4px; }
+.imbattable-note { font-size:0.76rem; font-style:italic; color:#b8860b; margin-top:4px; }
+.contrainte-chip { display:inline-flex; align-items:center; gap:5px; background:var(--green-light); color:var(--green); padding:4px 12px; border-radius:16px; font-size:0.78rem; font-weight:600; margin:3px; }
+.circulaire-store { margin-bottom:16px; }
+.circulaire-store h4 { font-size:0.8rem; font-weight:700; color:var(--text-light); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px; }
+.circulaire-item { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--gray); font-size:0.84rem; }
+.circulaire-item:last-child { border-bottom:none; }
+.circulaire-produit { flex:1; }
+.circulaire-prix { font-weight:700; color:var(--green); white-space:nowrap; }
+.circulaire-eco { font-size:0.72rem; font-weight:700; background:var(--green-light); color:var(--green); padding:2px 6px; border-radius:8px; white-space:nowrap; }
+
+/* ── RESPONSIVE ── */
+@media (max-width:600px) {
+  header h1 { font-size:1.3rem; }
+  .header-top { flex-direction:column; align-items:flex-start; gap:10px; }
+  .week-nav { align-self:flex-end; }
+  .menus-grid { grid-template-columns:1fr; }
+  .summary-grid { grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="color:var(--text-light);font-size:0.9rem">Chargement du planner…</div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div class="header-top">
+      <h1>🥗 Family Planner</h1>
+      <div class="week-nav">
+        <button id="btn-prev" onclick="navigate(-1)" title="Semaine précédente">‹</button>
+        <span id="week-label">—</span>
+        <button id="btn-next" onclick="navigate(1)" title="Semaine suivante">›</button>
+      </div>
+    </div>
+    <div class="stats-bar" id="stats-bar"></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('menus',this)">🍽️ Menus</button>
+    <button class="tab-btn" onclick="showTab('epicerie',this)">🛒 Épicerie</button>
+    <button class="tab-btn" onclick="showTab('resume',this)">📊 Résumé</button>
+    <button class="tab-btn" onclick="showTab('analyse',this)">💡 Analyse</button>
+  </div>
+
+  <main>
+    <!-- MENUS -->
+    <div id="tab-menus" class="tab-content active">
+      <div class="section-title">Soupers de la semaine</div>
+      <div class="menus-grid" id="menus-grid"></div>
+    </div>
+
+    <!-- ÉPICERIE -->
+    <div id="tab-epicerie" class="tab-content">
+      <div class="epicerie-toolbar">
+        <div class="progress-wrap">
+          <div class="progress-bar-track"><div class="progress-bar-fill" id="prog-fill" style="width:0%"></div></div>
+          <div class="progress-label" id="prog-label">Chargement…</div>
+        </div>
+        <button class="toggle-btn" id="btn-hide-home" onclick="toggleHideHome()">👁 Masquer déjà à la maison</button>
+        <button class="toggle-btn" onclick="clearChecked()">↺ Réinitialiser</button>
+      </div>
+      <div class="store-tabs" id="store-tabs"></div>
+      <div id="store-sections"></div>
+      <button class="copy-btn" onclick="copyList()">📋 Copier la liste (items à acheter)</button>
+    </div>
+
+    <!-- RÉSUMÉ -->
+    <div id="tab-resume" class="tab-content">
+      <div class="section-title">Cette semaine en chiffres</div>
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="section-title">Par magasin</div>
+      <div id="stores-summary"></div>
+    </div>
+
+    <!-- ANALYSE -->
+    <div id="tab-analyse" class="tab-content">
+      <div class="section-title">Raisonnement du planner</div>
+      <div class="analyse-card">
+        <h3>💭 Pourquoi ces menus cette semaine ?</h3>
+        <p id="raisonnement-text">—</p>
+      </div>
+      <div class="section-title">Contraintes alimentaires</div>
+      <div class="analyse-card" id="contraintes-block"></div>
+      <div class="section-title">⭐ Imbattables Maxi</div>
+      <div id="imbattables-block"></div>
+      <div class="section-title">📰 Circulaires de la semaine</div>
+      <div class="analyse-card" id="circulaires-block"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let weeks = [];
+let currentIdx = 0;
+let data = null;
+let hideHome = false;
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+async function init() {
+  try {
+    const index = await fetch('data/index.json').then(r => r.json());
+    weeks = index.semaines;
+    currentIdx = weeks.length - 1; // most recent
+    await loadWeek(currentIdx);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  } catch(e) {
+    document.getElementById('loading').innerHTML =
+      '<div style="color:#e53935;font-size:0.9rem;text-align:center;padding:20px">❌ Impossible de charger les données.<br><small>' + e.message + '</small></div>';
+  }
+}
+
+async function loadWeek(idx) {
+  currentIdx = idx;
+  const week = weeks[idx];
+  data = await fetch(week.file).then(r => r.json());
+  renderAll();
+  updateNav();
+}
+
+function navigate(dir) {
+  const next = currentIdx + dir;
+  if (next >= 0 && next < weeks.length) loadWeek(next);
+}
+
+function updateNav() {
+  document.getElementById('week-label').textContent = weeks[currentIdx].label;
+  document.getElementById('btn-prev').disabled = currentIdx === 0;
+  document.getElementById('btn-next').disabled = currentIdx === weeks.length - 1;
+}
+
+// ══════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ══════════════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════════════
+function renderAll() {
+  renderHeader();
+  renderMenus();
+  renderEpicerie();
+  renderResume();
+  renderAnalyse();
+}
+
+// ══════════════════════════════════════════════
+// HEADER
+// ══════════════════════════════════════════════
+function renderHeader() {
+  const imbCount = (data.imbattables_maxi || []).length;
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat">🍽️ ${data.n_repas} soupers</div>
+    <div class="stat">👨‍👩‍👧 ${data.n_portions} portions</div>
+    ${imbCount ? `<div class="stat">⭐ ${imbCount} Imbattable${imbCount>1?'s':''} Maxi</div>` : ''}
+    <div class="stat">💰 ~${data.cout_estime}</div>
+  `;
+}
+
+// ══════════════════════════════════════════════
+// MENUS
+// ══════════════════════════════════════════════
+function renderMenus() {
+  const grid = document.getElementById('menus-grid');
+  grid.innerHTML = '';
+  (data.menus || []).forEach((menu, i) => {
+    const titleHtml = menu.url
+      ? `<a href="${menu.url}" target="_blank" rel="noopener">${menu.titre}</a>`
+      : menu.titre;
+
+    const ingHtml = (menu.ingredients || []).map(ing => `
+      <div class="ingredient-row">
+        <span class="ing-name">${ing.nom}</span>
+        <span class="ing-qty">${ing.quantite}</span>
+        <span class="ing-store ${ing.magasin === 'MÉTRO' ? 'metro' : 'maxi'}">${ing.magasin}</span>
+        <div style="text-align:right;flex-shrink:0">
+          <div class="ing-price">${ing.prix}</div>
+          ${ing.en_special ? '<div class="special-badge">SOLDE</div>' : ''}
+        </div>
+      </div>`).join('');
+
+    const prepHtml = (menu.preparation || []).map(step => `<li>${step}</li>`).join('');
+    const hasDetails = (menu.ingredients||[]).length > 0 || (menu.preparation||[]).length > 0;
+
+    grid.innerHTML += `
+      <div class="menu-card" id="card-${i}">
+        <div class="menu-card-header" onclick="toggleCard(${i})">
+          <div class="protein-emoji">${menu.emoji || '🍴'}</div>
+          <div class="card-title-area">
+            <div class="recipe-name">${titleHtml}</div>
+            <div class="recipe-meta">
+              <span class="day-chip">${menu.jour}</span>
+              <span class="meta-tag time">⏱ ${menu.temps} min</span>
+              <span class="meta-tag saveur">${menu.saveur || menu.proteine}</span>
+              <span class="meta-tag">${menu.site}</span>
+            </div>
+          </div>
+          ${hasDetails ? '<span class="expand-icon">▼</span>' : ''}
+        </div>
+        ${hasDetails ? `
+        <div class="recipe-details">
+          ${ingHtml ? `<div class="detail-section">
+            <div class="detail-label">🛒 Ingrédients (${menu.portions} portions)</div>
+            ${ingHtml}
+          </div>` : ''}
+          ${prepHtml ? `<div class="detail-section">
+            <div class="detail-label">👨‍🍳 Préparation</div>
+            <ol class="prep-steps">${prepHtml}</ol>
+          </div>` : ''}
+          ${menu.astuce_meal_prep ? `<div class="tip-box"><strong>💡 Meal prep :</strong> ${menu.astuce_meal_prep}</div>` : ''}
+          ${menu.notes_caroline ? `<div class="note-caroline"><strong>⚠️ Caroline :</strong> ${menu.notes_caroline}</div>` : ''}
+        </div>` : ''}
+      </div>`;
+  });
+}
+
+function toggleCard(i) {
+  const card = document.getElementById('card-' + i);
+  card.classList.toggle('expanded');
+}
+
+// ══════════════════════════════════════════════
+// ÉPICERIE
+// ══════════════════════════════════════════════
+const storeColors = {
+  'MAXI':  { color:'#c62828', bg:'#fce4ec' },
+  'MÉTRO': { color:'#1565c0', bg:'#e3f2fd' },
+};
+
+function getChecked() {
+  const key = 'checked_' + (data.semaine_id || data.semaine);
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+function saveChecked(arr) {
+  const key = 'checked_' + (data.semaine_id || data.semaine);
+  localStorage.setItem(key, JSON.stringify(arr));
+}
+
+function renderEpicerie() {
+  const storeTabs = document.getElementById('store-tabs');
+  const storeSections = document.getElementById('store-sections');
+  storeTabs.innerHTML = '';
+  storeSections.innerHTML = '';
+
+  const epicerie = data.epicerie || {};
+  const storeNames = Object.keys(epicerie);
+  const checked = getChecked();
+
+  storeNames.forEach((storeName, si) => {
+    const sid = storeName.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+    const storeData = epicerie[storeName];
+    const cats = storeData.categories || {};
+    const isActive = si === 0;
+
+    // Tab
+    storeTabs.innerHTML += `<button class="store-tab${isActive?' active-store':''}" id="stab-${sid}" onclick="showStore('${sid}')">${storeName}</button>`;
+
+    // Section
+    let catHtml = '';
+    Object.entries(cats).forEach(([cat, items]) => {
+      catHtml += `<div class="cat-label">${cat}</div><div class="grocery-list">`;
+      items.forEach((item, ii) => {
+        const itemId = `${sid}_${si}_${ii}`;
+        const isChecked = checked.includes(itemId);
+        catHtml += `
+          <div class="grocery-item${item.imbattable_note ? ' imbattable' : ''}${isChecked ? ' checked' : ''}" id="item-${itemId}" onclick="toggleItem('${itemId}')">
+            <div class="checkbox">
+              <svg class="check-svg" width="12" height="10" viewBox="0 0 12 10" fill="none">
+                <path d="M1 5l3.5 3.5L11 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div style="flex:1">
+              <div class="item-name">${item.nom}</div>
+              <div class="item-qty">${item.quantite}${item.imbattable_note ? ' · ⭐ ' + item.imbattable_note : ''}</div>
+            </div>
+            <div>
+              <div class="item-price">${item.prix}</div>
+              ${item.en_special ? '<div class="item-special">SOLDE ✓</div>' : ''}
+            </div>
+          </div>`;
+      });
+      catHtml += '</div>';
+    });
+
+    const sc = storeColors[storeName] || { color:'#333', bg:'#f5f5f5' };
+    storeSections.innerHTML += `
+      <div class="store-section${isActive?' active-store':''}" id="section-${sid}" data-store="${storeName}">
+        <div style="display:flex;align-items:center;gap:10px;margin:6px 0 14px">
+          <div style="width:32px;height:32px;border-radius:8px;background:${sc.bg};color:${sc.color};font-weight:800;display:flex;align-items:center;justify-content:center;font-size:0.9rem">${storeName[0]}</div>
+          <strong style="color:${sc.color}">${storeName}</strong>
+        </div>
+        ${catHtml}
+      </div>`;
+  });
+
+  updateProgress();
+  applyHideHome();
+}
+
+function showStore(sid) {
+  document.querySelectorAll('.store-section').forEach(el => el.classList.remove('active-store'));
+  document.querySelectorAll('.store-tab').forEach(el => el.classList.remove('active-store'));
+  document.getElementById('section-' + sid)?.classList.add('active-store');
+  document.getElementById('stab-' + sid)?.classList.add('active-store');
+}
+
+function toggleItem(itemId) {
+  const el = document.getElementById('item-' + itemId);
+  el.classList.toggle('checked');
+  const checked = getChecked();
+  const idx = checked.indexOf(itemId);
+  if (idx >= 0) checked.splice(idx, 1); else checked.push(itemId);
+  saveChecked(checked);
+  updateProgress();
+}
+
+function updateProgress() {
+  const all = document.querySelectorAll('.grocery-item');
+  const checked = document.querySelectorAll('.grocery-item.checked');
+  const visible = document.querySelectorAll('.grocery-item:not(.hidden-home)');
+  const visibleChecked = document.querySelectorAll('.grocery-item.checked:not(.hidden-home)');
+  const total = visible.length;
+  const done = visibleChecked.length;
+  const pct = total === 0 ? 0 : Math.round(done / total * 100);
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = `${done} / ${total} items cochés  ·  ${all.length - checked.length} restants`;
+}
+
+function toggleHideHome() {
+  hideHome = !hideHome;
+  const btn = document.getElementById('btn-hide-home');
+  btn.classList.toggle('active', hideHome);
+  btn.textContent = hideHome ? '👁 Afficher tout' : '👁 Masquer déjà à la maison';
+  applyHideHome();
+  updateProgress();
+}
+
+function applyHideHome() {
+  document.querySelectorAll('.grocery-item.checked').forEach(el => {
+    el.classList.toggle('hidden-home', hideHome);
+  });
+}
+
+function clearChecked() {
+  const key = 'checked_' + (data.semaine_id || data.semaine);
+  localStorage.removeItem(key);
+  document.querySelectorAll('.grocery-item').forEach(el => {
+    el.classList.remove('checked', 'hidden-home');
+  });
+  updateProgress();
+}
+
+function copyList() {
+  const lines = [`🛒 LISTE D'ÉPICERIE — Semaine du ${data.semaine_label}`, ''];
+  document.querySelectorAll('.store-section').forEach(section => {
+    const storeName = section.dataset.store;
+    const toCopy = [...section.querySelectorAll('.grocery-item:not(.checked)')];
+    if (!toCopy.length) return;
+    lines.push(`── ${storeName.toUpperCase()} ──`);
+    toCopy.forEach(el => {
+      const name = el.querySelector('.item-name')?.textContent || '';
+      const qty = el.querySelector('.item-qty')?.textContent || '';
+      const price = el.querySelector('.item-price')?.textContent || '';
+      lines.push(`  • ${name} — ${qty} (${price})`);
+    });
+    lines.push('');
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✅ Copié !';
+    setTimeout(() => { btn.innerHTML = '📋 Copier la liste (items à acheter)'; }, 2000);
+  });
+}
+
+// ══════════════════════════════════════════════
+// RÉSUMÉ
+// ══════════════════════════════════════════════
+function renderResume() {
+  const epicerie = data.epicerie || {};
+  let totalItems = 0;
+  let imbCount = 0;
+  const storeCounts = {};
+  Object.entries(epicerie).forEach(([store, sd]) => {
+    let n = 0;
+    let imb = 0;
+    Object.values(sd.categories || {}).forEach(items => {
+      n += items.length;
+      imb += items.filter(i => i.imbattable_note).length;
+    });
+    storeCounts[store] = { n, imb, ...storeColors[store] || { color:'#333', bg:'#f5f5f5' } };
+    totalItems += n;
+    imbCount += (data.imbattables_maxi || []).length;
+  });
+
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card"><div class="big-num">${data.n_repas}</div><div class="big-label">Soupers planifiés</div></div>
+    <div class="summary-card"><div class="big-num">${data.n_portions}</div><div class="big-label">Portions / repas</div></div>
+    <div class="summary-card gold"><div class="big-num">${(data.imbattables_maxi||[]).length}</div><div class="big-label">Imbattables Maxi ⭐</div></div>
+    <div class="summary-card"><div class="big-num">${totalItems}</div><div class="big-label">Items à acheter</div></div>
+    <div class="summary-card orange"><div class="big-num">${data.cout_estime}</div><div class="big-label">Coût estimé</div></div>
+  `;
+
+  const storesSum = document.getElementById('stores-summary');
+  storesSum.innerHTML = '';
+  Object.entries(storeCounts).forEach(([store, info]) => {
+    storesSum.innerHTML += `
+      <div class="store-summary-row">
+        <div class="store-initial" style="background:${info.bg};color:${info.color}">${store[0]}</div>
+        <div class="store-info">
+          <div class="store-name">${store}</div>
+          <div class="store-detail">${info.n} item${info.n>1?'s':''}${info.imb ? ' · ⭐ ' + info.imb + ' Imbattable' + (info.imb>1?'s':'') : ''}</div>
+        </div>
+      </div>`;
+  });
+}
+
+// ══════════════════════════════════════════════
+// ANALYSE
+// ══════════════════════════════════════════════
+function renderAnalyse() {
+  // Raisonnement
+  document.getElementById('raisonnement-text').textContent = data.raisonnement || 'Non disponible.';
+
+  // Contraintes
+  const c = document.getElementById('contraintes-block');
+  c.innerHTML = '<h3>✅ Contraintes respectées</h3>' +
+    (data.contraintes || []).map(ct => `<span class="contrainte-chip">✓ ${ct}</span>`).join('') +
+    (data.notes_caroline ? `<div class="note-caroline" style="margin-top:12px"><strong>⚠️ Notes Caroline :</strong> ${data.notes_caroline}</div>` : '');
+
+  // Imbattables
+  const ib = document.getElementById('imbattables-block');
+  ib.innerHTML = '';
+  if (!(data.imbattables_maxi || []).length) {
+    ib.innerHTML = '<div class="analyse-card"><p>Aucun Imbattable Maxi cette semaine.</p></div>';
+  } else {
+    (data.imbattables_maxi || []).forEach(item => {
+      ib.innerHTML += `
+        <div class="imbattable-card">
+          <div class="imbattable-produit">⭐ ${item.produit}</div>
+          <div class="imbattable-detail">
+            Prix Maxi : <strong>${item.prix_maxi}</strong> &nbsp;·&nbsp;
+            ${item.epicerie_concurrent} : <strong>${item.prix_concurrent}</strong>
+          </div>
+          ${item.note ? `<div class="imbattable-note">💬 ${item.note}</div>` : ''}
+        </div>`;
+    });
+  }
+
+  // Circulaires
+  const cb = document.getElementById('circulaires-block');
+  const circ = data.circulaires || {};
+  cb.innerHTML = '<h3>📰 Soldes utilisés cette semaine</h3>';
+  Object.entries(circ).forEach(([store, items]) => {
+    if (!items.length) return;
+    cb.innerHTML += `<div class="circulaire-store">
+      <h4>${store}</h4>
+      ${items.map(item => `
+        <div class="circulaire-item">
+          <span class="circulaire-produit">${item.produit}</span>
+          <span class="circulaire-prix">${item.prix_promo}</span>
+          <span class="circulaire-eco">${item.economie_pct}</span>
+        </div>`).join('')}
+    </div>`;
+  });
+}
+
+// ══════════════════════════════════════════════
+// START
+// ══════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
