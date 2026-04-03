@@ -4,15 +4,17 @@ FamilyMeal → Google Sheets writer
 ────────────────────────────────────────────────────────────────
 Lit  : familymeal_data.json  (généré par le scheduled task Claude)
 Écrit: Google Sheets FamilyPlan-DATABASE (4 onglets)
+Mode : HISTORIQUE — chaque run ajoute une nouvelle semaine.
+       Les données des semaines précédentes sont conservées.
 
 Onglets cibles :
   Menus       → Semaine, Jour, Titre recette, URL, Site source,
                 Protéine, Temps (min), Portions, Statut
-  Circulaires → Date, Épicerie, Produit, Catégorie,
+  Circulaires → Semaine, Épicerie, Produit, Catégorie,
                 Prix promo, Prix régulier, Économie %
-  Épicerie    → Produit, Quantité, Unité, Prix, Catégorie,
+  Épicerie    → Semaine, Produit, Quantité, Unité, Prix, Catégorie,
                 Épicerie recommandée, Imbattable Maxi
-  Statut      → Valeur (A2) = "READY - AAAA-MM-JJ"
+  Statut      → Valeur (A2) = "READY - AAAA-MM-JJ | N semaine(s) archivée(s)"
 ────────────────────────────────────────────────────────────────
 """
 
@@ -52,17 +54,37 @@ def get_client():
             f"credentials.json introuvable dans : {SCRIPT_DIR}\n"
             "Télécharge-le depuis Google Cloud Console et place-le ici."
         )
-    creds  = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
     return gspread.authorize(creds)
+
+
+# ── Upsert générique (mode historique) ────────────────────────
+def upsert_tab(ws, headers, new_rows, semaine):
+    """
+    Mise à jour incrémentale :
+    1. Lit toutes les lignes existantes
+    2. Supprime celles de la semaine actuelle (re-run propre)
+    3. Ajoute les nouvelles lignes en tête (semaine la plus récente en haut)
+    4. Réécrit tout
+    Retourne le nombre de semaines distinctes archivées.
+    """
+    existing = ws.get_all_values()
+    kept_rows = [row for row in existing[1:] if row and row[0] != semaine]
+    all_rows = new_rows + kept_rows
+    ws.clear()
+    ws.update("A1", [headers] + all_rows)
+    semaines = set(row[0] for row in all_rows if row and row[0])
+    return len(semaines)
 
 
 # ── Onglet Menus ───────────────────────────────────────────────
 def write_menus(sheet, menus, semaine):
     ws = sheet.worksheet("Menus")
-    ws.batch_clear(["A2:Z1000"])
-    rows = []
+    headers = ["Semaine", "Jour", "Titre", "URL", "Site",
+               "Protéine", "Temps (min)", "Portions", "Statut"]
+    new_rows = []
     for m in menus:
-        rows.append([
+        new_rows.append([
             semaine,
             m.get("jour", ""),
             m.get("titre", ""),
@@ -73,18 +95,19 @@ def write_menus(sheet, menus, semaine):
             m.get("portions", ""),
             m.get("statut", "Suggéré"),
         ])
-    if rows:
-        ws.update(f"A2:I{1 + len(rows)}", rows)
-    print(f"   ✓ Menus : {len(rows)} ligne(s)")
+    n = upsert_tab(ws, headers, new_rows, semaine)
+    print(f"   ✓ Menus : {len(new_rows)} recettes | {n} semaine(s) archivée(s)")
+    return n
 
 
 # ── Onglet Circulaires ─────────────────────────────────────────
 def write_circulaires(sheet, circulaires, semaine):
     ws = sheet.worksheet("Circulaires")
-    ws.batch_clear(["A2:Z1000"])
-    rows = []
+    headers = ["Semaine", "Épicerie", "Produit", "Catégorie",
+               "Prix promo", "Prix régulier", "Économie %"]
+    new_rows = []
     for c in circulaires:
-        rows.append([
+        new_rows.append([
             semaine,
             c.get("epicerie", ""),
             c.get("produit", ""),
@@ -93,25 +116,22 @@ def write_circulaires(sheet, circulaires, semaine):
             c.get("prix_regulier", ""),
             c.get("economie_pct", ""),
         ])
-    if rows:
-        ws.update(f"A2:G{1 + len(rows)}", rows)
-    print(f"   ✓ Circulaires : {len(rows)} ligne(s)")
+    n = upsert_tab(ws, headers, new_rows, semaine)
+    print(f"   ✓ Circulaires : {len(new_rows)} items | {n} semaine(s) archivée(s)")
 
 
 # ── Onglet Épicerie ────────────────────────────────────────────
-# Ordre des colonnes :
-#   A=Produit  B=Quantité  C=Unité  D=Prix  E=Catégorie
-#   F=Épicerie recommandée  G=Imbattable Maxi
-def write_epicerie(sheet, epicerie):
+def write_epicerie(sheet, epicerie, semaine):
     ws = sheet.worksheet("Épicerie")
-    ws.batch_clear(["A2:Z1000"])
-    rows = []
+    headers = ["Semaine", "Produit", "Quantité", "Unité", "Prix",
+               "Catégorie", "Épicerie recommandée", "Imbattable Maxi"]
+    new_rows = []
     for item in epicerie:
         imbattable = item.get("imbattable_maxi", "")
-        # Normalise boolean → texte lisible
         if isinstance(imbattable, bool):
             imbattable = "OUI" if imbattable else ""
-        rows.append([
+        new_rows.append([
+            semaine,
             item.get("produit", ""),
             item.get("quantite", ""),
             item.get("unite", ""),
@@ -120,24 +140,22 @@ def write_epicerie(sheet, epicerie):
             item.get("epicerie", ""),
             imbattable,
         ])
-    if rows:
-        ws.update(f"A2:G{1 + len(rows)}", rows)
-    print(f"   ✓ Épicerie : {len(rows)} ligne(s)")
+    n = upsert_tab(ws, headers, new_rows, semaine)
+    print(f"   ✓ Épicerie : {len(new_rows)} items | {n} semaine(s) archivée(s)")
 
 
 # ── Onglet Statut ──────────────────────────────────────────────
-def write_statut(sheet, semaine):
+def write_statut(sheet, semaine, n_semaines):
     ws = sheet.worksheet("Statut")
-    ws.update("A2", [[f"READY - {semaine}"]])
-    print(f"   ✓ Statut : READY - {semaine}")
+    ws.update("A2", [[f"READY - {semaine} | {n_semaines} semaine(s) archivée(s)"]])
+    print(f"   ✓ Statut : READY - {semaine} | {n_semaines} semaine(s) archivée(s)")
 
 
 # ── Main ───────────────────────────────────────────────────────
 def main():
-    print("\n📊 FamilyMeal → Google Sheets")
-    print("─" * 40)
+    print("\n📊 FamilyMeal → Google Sheets (mode historique)")
+    print("─" * 50)
 
-    # 1. Lire le JSON généré par Claude
     if not os.path.exists(DATA_FILE):
         print(f"❌ Fichier introuvable : {DATA_FILE}")
         print("   Assure-toi que le scheduled task a bien généré familymeal_data.json")
@@ -153,7 +171,6 @@ def main():
     print(f"   Épicerie   : {len(data.get('epicerie', []))}")
     print()
 
-    # 2. Connexion Google Sheets
     print("   Connexion à Google Sheets...")
     try:
         client = get_client()
@@ -162,11 +179,10 @@ def main():
         print(f"❌ Connexion échouée : {e}")
         sys.exit(1)
 
-    # 3. Écriture des 4 onglets
-    write_menus(sheet, data.get("menus", []), semaine)
+    n_semaines = write_menus(sheet, data.get("menus", []), semaine)
     write_circulaires(sheet, data.get("circulaires", []), semaine)
-    write_epicerie(sheet, data.get("epicerie", []))
-    write_statut(sheet, semaine)
+    write_epicerie(sheet, data.get("epicerie", []), semaine)
+    write_statut(sheet, semaine, n_semaines)
 
     print()
     print(f"✅ Google Sheets mis à jour avec succès !")
